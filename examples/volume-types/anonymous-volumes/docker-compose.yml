@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  cache-app:
+    build: .
+    container_name: cache-anonymous-volumes
+    ports:
+      - "3003:3003"
+    # Anonymous volumes are created automatically from Dockerfile VOLUME directive
+    # They exist only for the lifetime of the container
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+    restart: unless-stopped
+
+# Note: No volumes section needed for anonymous volumes
+# They are automatically created and destroyed with the container

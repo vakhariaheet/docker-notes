@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  file-storage:
+    build: .
+    container_name: file-storage-named-volumes
+    ports:
+      - "3001:3001"
+    volumes:
+      # Named volume for persistent file storage
+      - file_storage_data:/app/uploads
+      # Named volume for application logs
+      - app_logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+    restart: unless-stopped
+
+volumes:
+  # Named volumes managed by Docker
+  file_storage_data:
+    driver: local
+  app_logs:
+    driver: local

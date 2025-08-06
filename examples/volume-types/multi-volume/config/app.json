@@ -1,0 +1,44 @@
+{
+  "appName": "Multi-Volume App",
+  "version": "1.0.0",
+  "description": "Demonstrates all Docker volume types",
+  "features": [
+    "named-volumes",
+    "anonymous-volumes", 
+    "tmpfs-mounts",
+    "bind-mounts"
+  ],
+  "volumes": {
+    "uploads": {
+      "type": "named",
+      "purpose": "Persistent file storage",
+      "path": "/app/uploads"
+    },
+    "logs": {
+      "type": "named", 
+      "purpose": "Application logs",
+      "path": "/app/logs"
+    },
+    "cache": {
+      "type": "anonymous",
+      "purpose": "Temporary cache data",
+      "path": "/app/cache"
+    },
+    "temp": {
+      "type": "tmpfs",
+      "purpose": "In-memory temporary files",
+      "path": "/app/temp"
+    },
+    "config": {
+      "type": "bind-mount",
+      "purpose": "Configuration files",
+      "path": "/app/config"
+    }
+  },
+  "settings": {
+    "maxFileSize": "10MB",
+    "cacheTimeout": 3600,
+    "logLevel": "info",
+    "tempFileTimeout": 30
+  }
+}

@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  dev-app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: dev-hot-reload-app
+    ports:
+      - "3002:3002"
+    volumes:
+      # Bind mount for hot reloading - source code
+      - ./src:/app/src
+      - ./package.json:/app/package.json:ro
+      # Named volume for node_modules (performance)
+      - node_modules_cache:/app/node_modules
+      # Bind mount for development tools
+      - ./.gitignore:/app/.gitignore:ro
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - CHOKIDAR_USEPOLLING=true  # For file watching in Docker
+    restart: unless-stopped
+    stdin_open: true
+    tty: true
+
+volumes:
+  node_modules_cache:

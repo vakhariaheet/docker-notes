@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: multivolume-postgres
+    environment:
+      POSTGRES_DB: multivolume_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      # Named volume for database persistence
+      - postgres_multivolume_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Multi-Volume Application
+  app:
+    build: .
+    container_name: multi-volume-app
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=production
+      - PORT=3005
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=multivolume_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Named volumes (persistent)
+      - uploads_data:/app/uploads
+      - logs_data:/app/logs
+      
+      # Bind mounts (host filesystem)
+      - ./config:/app/config
+      - ./src:/app/src:ro  # Read-only for security
+      
+      # Anonymous volume (temporary)
+      - /app/cache
+    
+    tmpfs:
+      # tmpfs mounts (in-memory)
+      - /app/temp:size=100M,mode=0755
+    
+    restart: unless-stopped
+
+  # Development version with hot reloading
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: multi-volume-app-dev
+    ports:
+      - "3006:3005"
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=multivolume_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - CHOKIDAR_USEPOLLING=true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      # Named volumes (persistent)
+      - uploads_data_dev:/app/uploads
+      - logs_data_dev:/app/logs
+      
+      # Bind mounts for development (hot reloading)
+      - ./config:/app/config
+      - ./src:/app/src
+      - ./package.json:/app/package.json:ro
+      
+      # Named volume for node_modules (performance)
+      - node_modules_dev:/app/node_modules
+      
+      # Anonymous volume (temporary)
+      - /app/cache
+    
+    tmpfs:
+      # tmpfs mounts (in-memory)
+      - /app/temp:size=100M,mode=0755
+    
+    profiles:
+      - dev
+    
+    restart: unless-stopped
+
+volumes:
+  # Production volumes
+  postgres_multivolume_data:
+  uploads_data:
+  logs_data:
+  
+  # Development volumes
+  uploads_data_dev:
+  logs_data_dev:
+  node_modules_dev:

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  security-app:
+    build: .
+    container_name: security-tmpfs-app
+    ports:
+      - "3004:3004"
+    tmpfs:
+      # tmpfs mounts for sensitive data (stored in RAM only)
+      - /app/secrets:size=100M,mode=0700
+      - /app/temp-keys:size=50M,mode=0700
+    environment:
+      - NODE_ENV=production
+      - PORT=3004
+    restart: unless-stopped
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    read_only: false
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID

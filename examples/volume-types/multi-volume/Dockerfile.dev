@@ -1,0 +1,22 @@
+FROM oven/bun:1
+
+WORKDIR /app
+
+# Copy package files
+COPY package.json ./
+
+# Install dependencies
+RUN bun install
+
+# Create directories
+RUN mkdir -p /app/uploads /app/cache /app/logs /app/temp /app/config
+
+# Expose port
+EXPOSE 3005
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3005/ || exit 1
+
+# Development mode with hot reloading
+CMD ["bun", "run", "dev"]

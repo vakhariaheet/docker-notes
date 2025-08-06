@@ -1,0 +1,18 @@
+{
+  "name": "dev-hot-reload-app",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun --watch src/index.ts",
+    "dev:hot": "bun --hot src/index.ts"
+  },
+  "dependencies": {
+    "express": "^5.1.0",
+    "cors": "^2.8.5",
+    "chokidar": "^4.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

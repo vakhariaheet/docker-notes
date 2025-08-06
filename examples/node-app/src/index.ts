@@ -1,18 +1,16 @@
 import Express from 'express';
 import cors from 'cors';
-import { ProductSchema, type Product } from './types.d';
+import { ProductSchema } from './types.d';
+import pool, { initDatabase } from './database';
 
 const app = Express();
 
 // Middlewares
 app.use(cors());
+app.use(Express.json());
 
-
-const DB: {
-    products: Product[]
-} = {
-    products: []
-};
+// Initialize database on startup
+initDatabase().catch(console.error);
 
 app.get('/', (req, res) => {
     return res.status(200).json({
@@ -23,36 +21,61 @@ app.get('/', (req, res) => {
     })
 })
 
-app.get('/products', (req, res) => {
-    const { q = "" } = req.query as { q?: string };
-    const products = DB.products.filter(product => product.title.toLowerCase().includes(q.toLocaleLowerCase()));
-    if (products.length === 0) {
-        return res.status(404).json({
-            isSuccess: true,
-            status: 404,
-            message: "No Products Found",
-            data: products
-        })
-    }
-    return res.status(200).json({
-        isSuccess: true,
-        status: 200,
-        message: "Products found Succesfully",
-        data: products
-    })
-})
-app.post('/products', (req, res) => {
+app.get('/products', async (req, res) => {
     try {
-        const product = ProductSchema.omit({ id: true }).parse(req.body);
-        const dbProduct = {
-            ...product,
-            id: crypto.randomUUID()
+        const { q = "" } = req.query as { q?: string };
+        let query = 'SELECT id, title, description, qty_in_stock as "qtyInStock", price FROM products';
+        let params: any[] = [];
+        
+        if (q) {
+            query += ' WHERE LOWER(title) LIKE LOWER($1)';
+            params = [`%${q}%`];
         }
-        DB.products.push(dbProduct);
+        
+        const result = await pool.query(query, params);
+        const products = result.rows;
+        
+        if (products.length === 0) {
+            return res.status(404).json({
+                isSuccess: true,
+                status: 404,
+                message: "No Products Found",
+                data: products
+            })
+        }
+        
         return res.status(200).json({
             isSuccess: true,
             status: 200,
-            message: "Products found Succesfully",
+            message: "Products found Successfully",
+            data: products
+        })
+    } catch (error) {
+        console.error('Error fetching products:', error);
+        return res.status(500).json({
+            isSuccess: false,
+            status: 500,
+            message: "Internal Server Error",
+            data: null
+        })
+    }
+})
+
+app.post('/products', async (req, res) => {
+    try {
+        const product = ProductSchema.omit({ id: true }).parse(req.body);
+        
+        const result = await pool.query(
+            'INSERT INTO products (title, description, qty_in_stock, price) VALUES ($1, $2, $3, $4) RETURNING id, title, description, qty_in_stock as "qtyInStock", price',
+            [product.title, product.description, product.qtyInStock, product.price]
+        );
+        
+        const dbProduct = result.rows[0];
+        
+        return res.status(201).json({
+            isSuccess: true,
+            status: 201,
+            message: "Product created successfully",
             data: dbProduct
         })
     }
@@ -67,30 +90,69 @@ app.post('/products', (req, res) => {
     }
 })
 
-app.put('/products/:id', (req, res) => {
+app.put('/products/:id', async (req, res) => {
     try {
         const productId = req.params.id;
         const product = ProductSchema.omit({ id: true }).partial({ description: true, price: true, qtyInStock: true, title: true }).parse(req.body);
-        const dbProduct = DB.products.findIndex((product) => product.id === productId);
-        if (!DB.products[ dbProduct ]) {
+        
+        // Build dynamic update query
+        const updateFields = [];
+        const values = [];
+        let paramCount = 1;
+        
+        if (product.title !== undefined) {
+            updateFields.push(`title = $${paramCount++}`);
+            values.push(product.title);
+        }
+        if (product.description !== undefined) {
+            updateFields.push(`description = $${paramCount++}`);
+            values.push(product.description);
+        }
+        if (product.qtyInStock !== undefined) {
+            updateFields.push(`qty_in_stock = $${paramCount++}`);
+            values.push(product.qtyInStock);
+        }
+        if (product.price !== undefined) {
+            updateFields.push(`price = $${paramCount++}`);
+            values.push(product.price);
+        }
+        
+        if (updateFields.length === 0) {
+            return res.status(400).json({
+                isSuccess: false,
+                status: 400,
+                message: "No fields to update",
+                data: null
+            });
+        }
+        
+        updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
+        values.push(productId);
+        
+        const query = `
+            UPDATE products 
+            SET ${updateFields.join(', ')} 
+            WHERE id = $${paramCount} 
+            RETURNING id, title, description, qty_in_stock as "qtyInStock", price
+        `;
+        
+        const result = await pool.query(query, values);
+        
+        if (result.rows.length === 0) {
             return res.status(404).json({
                 isSuccess: false,
                 status: 404,
-                message: "Products Not found",
+                message: "Product not found",
                 data: null
-            })
+            });
         }
-
-        DB.products[ dbProduct ] = {
-            ...DB.products[ dbProduct ],
-            ...product
-        }
+        
         return res.status(200).json({
             isSuccess: true,
             status: 200,
-            message: "Product Updated Succesfully",
-            data: DB.products[ dbProduct ]
-        })
+            message: "Product updated successfully",
+            data: result.rows[0]
+        });
     }
     catch (error) {
         console.log(error)
@@ -102,27 +164,43 @@ app.put('/products/:id', (req, res) => {
         })
     }
 })
-app.delete('/products/:id', (req, res) => {
-    const productId = req.params.id;
-    const dbProduct = DB.products.find((product) => product.id === productId);
-    if (dbProduct) {
-        return res.status(404).json({
-            isSuccess: false,
-            status: 404,
-            message: "Products Not found",
+
+app.delete('/products/:id', async (req, res) => {
+    try {
+        const productId = req.params.id;
+        
+        const result = await pool.query(
+            'DELETE FROM products WHERE id = $1 RETURNING id',
+            [productId]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({
+                isSuccess: false,
+                status: 404,
+                message: "Product not found",
+                data: null
+            });
+        }
+        
+        return res.status(200).json({
+            isSuccess: true,
+            status: 200,
+            message: "Product deleted successfully",
             data: null
-        })
+        });
+    } catch (error) {
+        console.error('Error deleting product:', error);
+        return res.status(500).json({
+            isSuccess: false,
+            status: 500,
+            message: "Internal Server Error",
+            data: null
+        });
     }
-    DB.products = DB.products.filter(product => product === dbProduct);
-    return res.json({
-        isSuccess: true,
-        status: 200,
-        message: "Product Delete Succesfully",
-        data: null
-    })
 })
 
 const PORT = process.env.PORT ?? 3000
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`Server Started on port : ${PORT} 🚀🚀🚀`)
 })
