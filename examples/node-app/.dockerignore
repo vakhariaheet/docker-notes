@@ -1,10 +1,61 @@
-node_modules
-npm-debug.log
-.git
-.gitignore
-README.md
-.env
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Coverage reports
+coverage/
+*.lcov
 .nyc_output
-coverage
-.DS_Store
+
+# Test files (exclude from production builds)
+tests/
+**/*.test.ts
+**/*.spec.ts
+jest.config.js
+jest.integration.config.js
+
+# Development files
 *.log
+.env.local
+.env.development
+.env.test
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+README.md
+*.md
+
+# Build artifacts that should be rebuilt in container
+dist/
+build/
+
+# Scripts (exclude from production builds)
+run-tests.sh
+build-optimized.sh
+env-setup.sh

@@ -19,10 +19,41 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app-network
+
+  # Test PostgreSQL Database
+  postgres-test:
+    image: postgres:15-alpine
+    container_name: products-postgres-test
+    environment:
+      POSTGRES_DB: test_products_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    profiles:
+      - test
 
   # Node.js Application
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: production
+        BUILD_DATE: ${BUILD_DATE}
+        BUILD_VERSION: ${BUILD_VERSION:-latest}
+        BUILD_COMMIT: ${BUILD_COMMIT}
     container_name: products-api
     environment:
       NODE_ENV: production
@@ -37,9 +68,129 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./src:/app/src
     restart: unless-stopped
+    networks:
+      - app-network
+
+  # Development version with hot reloading
+  app-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: products-api-dev
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: products_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      CHOKIDAR_USEPOLLING: "true"
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src:ro
+      - ./package.json:/app/package.json:ro
+      - ./tsconfig.json:/app/tsconfig.json:ro
+    restart: unless-stopped
+    networks:
+      - app-network
+    profiles:
+      - dev
+
+  # Testing service
+  app-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: products-api-test
+    environment:
+      NODE_ENV: test
+      TEST_DB_HOST: postgres-test
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: test_products_db
+      TEST_DB_USER: postgres
+      TEST_DB_PASSWORD: postgres
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./src:/app/src:ro
+      - ./coverage:/app/coverage
+    command: npm run test:coverage
+    networks:
+      - test-network
+    profiles:
+      - test
+
+  # Integration testing service
+  app-integration-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: products-api-integration-test
+    environment:
+      NODE_ENV: test
+      TEST_DB_HOST: postgres-test
+      TEST_DB_PORT: 5432
+      TEST_DB_NAME: test_products_db
+      TEST_DB_USER: postgres
+      TEST_DB_PASSWORD: postgres
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+      app-test-server:
+        condition: service_healthy
+    volumes:
+      - ./tests:/app/tests:ro
+      - ./src:/app/src:ro
+    command: npm run test:integration
+    networks:
+      - test-network
+    profiles:
+      - integration-test
+
+  # Test server for integration tests
+  app-test-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_ENV: test
+    container_name: products-api-test-server
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+      DB_HOST: postgres-test
+      DB_PORT: 5432
+      DB_NAME: test_products_db
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+    ports:
+      - "3002:3000"
+    depends_on:
+      postgres-test:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1) })"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - test-network
+    profiles:
+      - integration-test
 
 volumes:
   postgres_data:
+
+networks:
+  app-network:
+    driver: bridge
+  test-network:
+    driver: bridge

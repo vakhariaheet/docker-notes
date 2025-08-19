@@ -4,13 +4,32 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc",
-    "dev": "bun run src/index.ts",
-    "start": "bun run src/index.ts"
+    "build": "esbuild src/index.ts --bundle --platform=node --outfile=dist/index.js --target=node18 --format=esm --external:pg --external:express --external:cors --external:zod",
+    "build:prod": "npm run build -- --minify",
+    "dev": "bun run --watch src/index.ts",
+    "start": "node dist/index.js",
+    "start:dev": "bun run src/index.ts",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest tests/unit/ --coverage",
+    "test:integration": "jest --config jest.integration.config.js",
+    "lint": "eslint src/**/*.ts",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/pg": "^8.11.10"
+    "@types/pg": "^8.11.10",
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/jest": "^29.5.12",
+    "@types/supertest": "^6.0.2",
+    "esbuild": "^0.20.2",
+    "jest": "^29.7.0",
+    "supertest": "^6.3.4",
+    "ts-jest": "^29.1.2",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.1.0",
+    "@typescript-eslint/parser": "^7.1.0"
   },
   "peerDependencies": {
     "typescript": "^5"

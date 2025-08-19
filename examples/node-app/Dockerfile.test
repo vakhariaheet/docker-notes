@@ -1,0 +1,22 @@
+# Testing Dockerfile
+FROM node:18-alpine
+
+WORKDIR /app
+
+# Install testing tools
+RUN apk add --no-cache curl
+
+# Copy package files
+COPY package*.json ./
+
+# Install ALL dependencies (including dev dependencies for testing)
+RUN npm ci
+
+# Copy source code and tests
+COPY . .
+
+# Create coverage directory
+RUN mkdir -p coverage
+
+# Default command for testing
+CMD ["npm", "test"]

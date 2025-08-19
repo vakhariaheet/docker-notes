@@ -11,8 +11,8 @@
 
     // Bundler mode
     "moduleResolution": "bundler",
-    "verbatimModuleSyntax": true,
-
+    // "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
     // Best practices
     "strict": true,
     "skipLibCheck": true,

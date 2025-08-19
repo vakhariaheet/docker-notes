@@ -16,7 +16,7 @@ app.get('/', (req, res) => {
     return res.status(200).json({
         isSuccess: true,
         status: 200,
-        message: "Server is Live 🚀🚀🚀",
+        message: "Server is Live 🚀🚀",
         data: null
     })
 })
@@ -199,6 +199,44 @@ app.delete('/products/:id', async (req, res) => {
         });
     }
 })
+
+// Health check endpoint for Docker health checks and monitoring
+app.get('/health', async (req, res) => {
+    try {
+        // Check database connection
+        const dbResult = await pool.query('SELECT 1 as health_check');
+        const dbHealthy = dbResult.rows.length > 0;
+        
+        const healthStatus = {
+            status: 'OK',
+            timestamp: new Date().toISOString(),
+            uptime: process.uptime(),
+            database: dbHealthy ? 'connected' : 'disconnected',
+            memory: process.memoryUsage(),
+            environment: process.env.NODE_ENV || 'development',
+            version: process.env.BUILD_VERSION || 'unknown',
+            commit: process.env.BUILD_COMMIT || 'unknown'
+        };
+        
+        if (dbHealthy) {
+            return res.status(200).json(healthStatus);
+        } else {
+            return res.status(503).json({
+                ...healthStatus,
+                status: 'SERVICE_UNAVAILABLE',
+                message: 'Database connection failed'
+            });
+        }
+    } catch (error) {
+        console.error('Health check failed:', error);
+        return res.status(503).json({
+            status: 'SERVICE_UNAVAILABLE',
+            timestamp: new Date().toISOString(),
+            message: 'Health check failed',
+            error: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+});
 
 const PORT = process.env.PORT ?? 3000
 app.listen(PORT, async () => {
